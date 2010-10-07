@@ -93,8 +93,8 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
         self.refs = refs
 
     def get_logs(self, _=None):
-        # log A..B is basically means: show all revisions reachable
-        # from B but not from A
+        # log A..B basically means: show all revisions reachable from
+        # B but not from A
         l = []
         for name, ref in self.refs.iteritems():
             oldref = self.oldrefs.get(name, '')
@@ -112,7 +112,7 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
         # format of the returned log:
         #
         #   log := entry? (\0 entry)*
-        #   stanza := ref \0 author \0 date \0 subject \0 (\n (file \0)+ )?
+        #   entry := ref \0 author \0 date \0 subject \0 (\n (file \0)+ )?
         #
         # there's always a \0\0 between two consecutive entries so we
         # can split there.
