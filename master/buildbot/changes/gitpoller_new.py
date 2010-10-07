@@ -50,6 +50,9 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
     def __str__(self):
         return "GitPoller(%s)" % self.name
 
+    def describe(self):
+        return str(self)
+
     def startService(self):
         log.msg("%s starting" % self)
         base.ChangeSource.startService(self)
@@ -65,103 +68,105 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
         self.loop.stop()
         return base.ChangeSource.stopService(self)
 
-    def describe(self):
-        return str(self)
-
     def checkgit(self):
+
+        def get_refs(_=None, first=False):
+
+            def parse_refs(res):
+                refs = {}
+                for line in res.splitlines():
+                    ref, _, name = line.split(' ')
+                    assert name.startswith(PREFIX)
+                    name = name[len(PREFIX):]
+                    refs[name] = ref
+                return refs
+
+            def set_refs(res, first):
+                if first:
+                    self.oldrefs = res
+                else:
+                    self.refs = res
+
+            args = ['for-each-ref',
+                    '--format=%(objectname) %(objecttype) %(refname)',
+                    '%s%s' % (PREFIX, self.branchpattern)]
+            d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
+                                       env=self.environ)
+            d.addCallback(parse_refs)
+            d.addCallback(set_refs, first)
+            return d
+
+
+        def fetch(_=None):
+            args = ['fetch', '-q']
+            return utils.getProcessOutput(self.gitbin, args, path=self.repodir,
+                                          env=self.environ)
+
+        def get_logs(_):
+
+            def parse_log(log, branch):
+                # format of the returned log:
+                #
+                #   log := entry? (\0 entry)*
+                #   entry := ref \0 author \0 date \0 subject \0 (\n (file \0)+ )?
+                #
+                # there's always a \0\0 between two consecutive entries so we
+                # can split there.
+                if log:
+                    for entry in log.rstrip('\0').split('\0\0'):
+                        f = entry.split('\0')
+                        assert len(f)>=4
+                        ref, who, comments = f[0], f[1], f[3]
+                        when = float(f[2])
+                        files = f[4:]
+                        if files:
+                            # remove the leading newline
+                            files[0] = files[0].lstrip('\n')
+                        c = Change(who=who, when=when, files=files, comments=comments,
+                                   revision=ref, branch=branch, category=self.category,
+                                   repository=self.repodir, project=self.project)
+                        self.parent.addChange(c)
+                return defer.succeed(None)
+
+            # log A..B basically means: show all revisions reachable from
+            # B but not from A
+            l = []
+            for name, ref in self.refs.iteritems():
+                oldref = self.oldrefs.get(name, '')
+                if oldref != ref:
+                    args = ['log', "%s%s" % (oldref and "%s.." % oldref, ref),
+                            '--pretty=format:%H%x00%cN <%cE>%x00%at%x00%s%x00',
+                            '-z' ,'--name-only', '--reverse']
+                    d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
+                                               env=self.environ)
+                    d.addCallback(parse_log, name)
+                    l.append(d)
+            return defer.gatherResults(l)
+
+        def finished_ok(res):
+            log.msg("%s finished polling %s" % (self, res or ''))
+            self.oldrefs, self.refs = self.refs, None
+            self.working = False
+            return res
+
+        def finished_failure(failure):
+            log.msg("%s failed %s" % (self, failure))
+            self.working = False
+            return False
+
         if self.working:
             log.msg("%s overrun, previous run not finished yet" % self)
             return defer.succeed(None)
         self.working = True
 
         if not self.oldrefs:
-            d = self.get_refs()
-            d.addCallback(self.set_old_refs)
-            d.addCallback(self.fetch)
+            d = get_refs(first=True)
+            d.addCallback(fetch)
         else:
-            d = self.fetch()
-        d.addCallback(self.get_refs)
-        d.addCallback(self.set_refs)
-        d.addCallback(self.get_logs)
-        d.addCallbacks(self.finished_ok, self.finished_failure)
+            d = fetch()
+        d.addCallback(get_refs)
+        d.addCallback(get_logs)
+        d.addCallbacks(finished_ok, finished_failure)
         return d
 
-    def set_old_refs(self, refs):
-        self.oldrefs = refs
 
-    def set_refs(self, refs):
-        self.refs = refs
-
-    def get_logs(self, _=None):
-        # log A..B basically means: show all revisions reachable from
-        # B but not from A
-        l = []
-        for name, ref in self.refs.iteritems():
-            oldref = self.oldrefs.get(name, '')
-            if oldref != ref:
-                args = ['log', "%s%s" % (oldref and "%s.." % oldref, ref),
-                        '--pretty=format:%H%x00%cN <%cE>%x00%at%x00%s%x00',
-                        '-z' ,'--name-only', '--reverse']
-                d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
-                                           env=self.environ)
-                d.addCallback(self.parse_log, name)
-                l.append(d)
-        return defer.gatherResults(l)
-
-    def parse_log(self, log, branch):
-        # format of the returned log:
-        #
-        #   log := entry? (\0 entry)*
-        #   entry := ref \0 author \0 date \0 subject \0 (\n (file \0)+ )?
-        #
-        # there's always a \0\0 between two consecutive entries so we
-        # can split there.
-        if log:
-            for entry in log.rstrip('\0').split('\0\0'):
-                f = entry.split('\0')
-                assert len(f)>=4
-                ref, who, comments = f[0], f[1], f[3]
-                when = float(f[2])
-                files = f[4:]
-                if files:
-                    # remove the leading newline
-                    files[0] = files[0].lstrip('\n')
-                c = Change(who=who, when=when, files=files, comments=comments,
-                           revision=ref, branch=branch, category=self.category,
-                           repository=self.repodir, project=self.project)
-                self.parent.addChange(c)
-        return defer.succeed(None)
-
-    def get_refs(self, _=None):
-        args = ['for-each-ref',
-                '--format=%(objectname) %(objecttype) %(refname)',
-                '%s%s' % (PREFIX, self.branchpattern)]
-        d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
-                                   env=self.environ)
-        d.addCallback(self.parse_refs)
-        return d
-
-    def fetch(self, _=None):
-        args = ['fetch', '-q']
-        return utils.getProcessOutput(self.gitbin, args, path=self.repodir,
-                                      env=self.environ)
-
-    def parse_refs(self, res):
-        refs = {}
-        for line in res.splitlines():
-            ref, _, name = line.split(' ')
-            assert name.startswith(PREFIX)
-            name = name[len(PREFIX):]
-            refs[name] = ref
-        return refs
-
-    def finished_ok(self, res):
-        log.msg("%s finished polling %s" % (self, res or ''))
-        self.oldrefs, self.refs = self.refs, None
-        self.working = False
-        return res
-
-    def finished_failure(self, failure):
-        log.msg("%s failed %s" % (self, failure))
-        self.working = False
-        return False
