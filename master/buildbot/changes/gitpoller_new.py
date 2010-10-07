@@ -2,11 +2,14 @@
 # written by Thomas Moschny <thomas.moschny@gmx.de>
 #
 # Notes:
-# - intended to be used on a bare, mirroring repo in repodir
+# - intended to be used on a bare, mirroring repo in repodir (created
+#   with "git clone --mirror")
 # - next version will clone the repo if not already there
-#
-# - we don't deal with encodings at all
 # - maybe we could use reflogs, but then wildcards wouldn't work
+#
+# - we don't deal with encodings yet.
+#   - git returns commit messages as UTF-8 unless told otherwise
+#   - file names are stored as bytes.
 #
 from buildbot import util
 from buildbot.changes import base
