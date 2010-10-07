@@ -135,7 +135,7 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
                 oldref = self.oldrefs.get(name, '')
                 if oldref != ref:
                     args = ['log', "%s%s" % (oldref and "%s.." % oldref, ref),
-                            '--pretty=format:%H%x00%cN <%cE>%x00%at%x00%s%x00',
+                            '--pretty=format:%H%x00%cN <%cE>%x00%at%x00%B%x00',
                             '-z' ,'--name-only', '--reverse']
                     d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
                                                env=self.environ)
