@@ -140,14 +140,15 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
                 if not self.branch_re.match(name):
                     continue
                 oldref = self.oldrefs.get(name, '')
-                if oldref != ref:
-                    args = ['log', "%s%s" % (oldref and "%s.." % oldref, ref),
-                            '--pretty=format:%H%x00%cN <%cE>%x00%at%x00%B%x00',
-                            '-z' ,'--name-only', '--reverse']
-                    d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
-                                               env=self.environ)
-                    d.addCallback(parse_log, name)
-                    l.append(d)
+                if oldref == ref:
+                    continue
+                args = ['log', "%s%s" % (oldref and "%s.." % oldref, ref),
+                        '--pretty=format:%H%x00%cN <%cE>%x00%at%x00%B%x00',
+                        '-z' ,'--name-only', '--reverse']
+                d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
+                                           env=self.environ)
+                d.addCallback(parse_log, name)
+                l.append(d)
             return defer.gatherResults(l)
 
         def finished_ok(res):
