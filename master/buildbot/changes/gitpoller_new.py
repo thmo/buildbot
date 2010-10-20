@@ -21,11 +21,12 @@ from twisted.python import log
 
 import os
 
-PREFIX='refs/heads/'
+PREFIX = 'refs/heads/'
+REFS = '*'
 
 class GitPoller(base.ChangeSource, util.ComparableMixin):
 
-    compare_attrs = ["name", "project", "branchpattern", "repodir",
+    compare_attrs = ["name", "project", "repodir",
                      "pollinterval", "category"]
         
     parent = None
@@ -33,13 +34,12 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
     working = False
 
     def __init__(self, repodir=None, name=None,
-                 pollinterval=10*60, branchpattern='*',
+                 pollinterval=10*60, 
                  gitbin='git', category=None, project=None):
 
         self.repodir = repodir
         self.name = name or project or repodir
         self.pollinterval = pollinterval
-        self.branchpattern = branchpattern
         self.gitbin = gitbin
         self.loop = LoopingCall(self.checkgit)
         self.category = category
@@ -92,7 +92,7 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
 
             args = ['for-each-ref',
                     '--format=%(objectname) %(objecttype) %(refname)',
-                    '%s%s' % (PREFIX, self.branchpattern)]
+                    '%s%s' % (PREFIX, REFS)]
             d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
                                        env=self.environ)
             d.addCallback(parse_refs)
