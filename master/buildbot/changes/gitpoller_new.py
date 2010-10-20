@@ -29,7 +29,7 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
 
     compare_attrs = ["name", "project", "repodir",
                      "pollinterval", "category"]
-        
+
     parent = None
     loop = None
     working = False
