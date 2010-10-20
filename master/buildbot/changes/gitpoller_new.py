@@ -20,6 +20,7 @@ from twisted.internet.task import LoopingCall
 from twisted.python import log
 
 import os
+import re
 
 PREFIX = 'refs/heads/'
 REFS = '*'
@@ -34,13 +35,14 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
     working = False
 
     def __init__(self, repodir=None, name=None,
-                 pollinterval=10*60, 
+                 pollinterval=10*60, branch_re=r'.*',
                  gitbin='git', category=None, project=None):
 
         self.repodir = repodir
         self.name = name or project or repodir
         self.pollinterval = pollinterval
         self.gitbin = gitbin
+        self.branch_re = re.compile(branch_re)
         self.loop = LoopingCall(self.checkgit)
         self.category = category
         self.project = project
@@ -135,6 +137,8 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
             # B but not from A
             l = []
             for name, ref in self.refs.iteritems():
+                if not self.branch_re.match(name):
+                    continue
                 oldref = self.oldrefs.get(name, '')
                 if oldref != ref:
                     args = ['log', "%s%s" % (oldref and "%s.." % oldref, ref),
