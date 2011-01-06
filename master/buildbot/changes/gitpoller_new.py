@@ -25,7 +25,7 @@ import re
 PREFIX = 'refs/heads/'
 REFS = '*'
 
-class GitPoller(base.ChangeSource, util.ComparableMixin):
+class GitPoller(base.ChangeSource):
 
     compare_attrs = ["name", "project", "repodir",
                      "pollinterval", "category"]
