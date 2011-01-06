@@ -45,6 +45,8 @@ class GitPoller(base.ChangeSource, util.ComparableMixin):
         self.branch_re = re.compile(branch_re)
         self.loop = LoopingCall(self.checkgit)
         self.category = category
+        if project is None:
+            project = ''
         self.project = project
 
         self.oldrefs = None
