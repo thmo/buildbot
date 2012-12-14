@@ -115,17 +115,22 @@ class GitPoller(base.ChangeSource):
                 # format of the returned log:
                 #
                 #   log := entry? (\0 entry)*
-                #   entry := ref \0 author \0 date \0 subject \0 (\n (file \0)+ )?
+                #   entry := ref \0 date \0 encoding SPC \0 author \0 body \0
+                #            (\n (file \0)+ )?
                 #
                 # there's always a \0\0 between two consecutive entries so we
                 # can split there.
                 if log:
                     for entry in log.rstrip('\0').split('\0\0'):
                         f = entry.split('\0')
-                        assert len(f)>=4
-                        ref, who, comments = f[0], f[1], f[3]
-                        when = float(f[2])
-                        files = f[4:]
+                        assert len(f)>=5
+                        ref = f[0]
+                        when = float(f[1])
+                        # %e followed by a space (to not get \0\0)
+                        encoding = f[2][:-1] or 'UTF-8'
+                        who = f[3].decode(encoding)
+                        comments = f[4].decode(encoding)
+                        files = f[5:]
                         if files:
                             # remove the leading newline
                             files[0] = files[0].lstrip('\n')
@@ -145,7 +150,7 @@ class GitPoller(base.ChangeSource):
                 if oldref == ref:
                     continue
                 args = ['log', "%s%s" % (oldref and "%s.." % oldref, ref),
-                        '--pretty=format:%H%x00%aN <%aE>%x00%at%x00%B%x00',
+                        '--pretty=format:%H%x00%at%x00%e %x00%aN <%aE>%x00%B%x00',
                         '-z' ,'--name-only', '--reverse']
                 d = utils.getProcessOutput(self.gitbin, args, path=self.repodir,
                                            env=self.environ)
