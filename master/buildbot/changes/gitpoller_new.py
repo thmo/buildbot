@@ -128,8 +128,8 @@ class GitPoller(base.ChangeSource):
                         when = float(f[1])
                         # %e followed by a space (to not get \0\0)
                         encoding = f[2][:-1] or 'UTF-8'
-                        who = f[3].decode(encoding)
-                        comments = f[4].decode(encoding)
+                        who = f[3].decode(encoding, 'replace')
+                        comments = f[4].decode(encoding, 'replace')
                         files = f[5:]
                         if files:
                             # remove the leading newline
